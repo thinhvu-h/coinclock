@@ -36,13 +36,13 @@ typedef enum{
 	WIFI_OP_DEFAULT_STATE = 0xFF
 } wifi_operate_status_t;
 
-
-
 #if(CONFIG_QUICK_WIFI_START)
 extern void wifi_init_sta(void);
 extern void wifi_sntp_check();
 #else
 extern void hub_wifi_init(void);
 #endif
+
+extern uint8_t wifi_status;
 
 #endif /*HUB_WIFI_H*/

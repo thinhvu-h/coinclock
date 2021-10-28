@@ -49,11 +49,10 @@ static const char *TAG = "HUB_WIFI";
 #endif
 
 // Event group
-static EventGroupHandle_t event_group;
 const int STA_CONNECTED_BIT = BIT0;
 const int STA_DISCONNECTED_BIT = BIT1;
 
-extern uint8_t wifi_status = 0xff;
+uint8_t wifi_status = 0xff;
 
 #if(CONFIG_QUICK_WIFI_START)
 static EventGroupHandle_t s_wifi_event_group;
@@ -227,6 +226,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 
 void wifi_init_softap()
 {
+    esp_netif_create_default_wifi_ap();
     wifi_config_t ap_config = {
         .ap = {
             .ssid = CONFIG_AP_SSID,
@@ -339,11 +339,11 @@ static httpd_handle_t start_webserver(void)
     return NULL;
 }
 
-static void stop_webserver(httpd_handle_t server)
-{
-    // Stop the httpd server
-    httpd_stop(server);
-}
+// static void stop_webserver(httpd_handle_t server)
+// {
+//     // Stop the httpd server
+//     httpd_stop(server);
+// }
 
 esp_err_t hub_is_provisioned(bool *provisioned)
 {
@@ -371,25 +371,26 @@ void hub_wifi_init(void)
 {
     ESP_LOGI(TAG, "initializing");
 	// initializing the tcpip stack and the wifi event handler:
-	tcpip_adapter_init();
-	printf("- TCP adapter initialized\n");
+	// tcpip_adapter_init();
+	// printf("- TCP adapter initialized\n");
+    esp_netif_init();
 
-	// stop DHCP server
-	ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
-	printf("- DHCP server stopped\n");
+	// // stop DHCP server
+	// ESP_ERROR_CHECK(tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP));
+	// printf("- DHCP server stopped\n");
 	
-	// assign a static IP to the network interface
-	tcpip_adapter_ip_info_t info;
-    memset(&info, 0, sizeof(info));
-	IP4_ADDR(&info.ip, 192, 168, 1, 11);
-    IP4_ADDR(&info.gw, 192, 168, 1, 11);
-    IP4_ADDR(&info.netmask, 255, 255, 255, 0);
-	ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info));
-	printf("- TCP adapter configured with IP 192.168.1.1/24\n");
+	// // assign a static IP to the network interface
+	// tcpip_adapter_ip_info_t info;
+    // memset(&info, 0, sizeof(info));
+	// IP4_ADDR(&info.ip, 192, 168, 1, 11);
+    // IP4_ADDR(&info.gw, 192, 168, 1, 11);
+    // IP4_ADDR(&info.netmask, 255, 255, 255, 0);
+	// ESP_ERROR_CHECK(tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info));
+	// printf("- TCP adapter configured with IP 192.168.1.1/24\n");
 	
-	// start the DHCP server   
-    ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
-	printf("- DHCP server started\n");
+	// // start the DHCP server   
+    // ESP_ERROR_CHECK(tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP));
+	// printf("- DHCP server started\n");
 
     /* Create event loop needed by provisioning service */
     esp_event_loop_create_default();
@@ -414,8 +415,9 @@ void hub_wifi_init(void)
     if (provisioned == false) {
 		ESP_LOGI(TAG, "ESP_WIFI_MODE_AP");
         wifi_init_softap();
-        httpd_handle_t server = NULL;
-        server = start_webserver(); 
+        // httpd_handle_t server = NULL;
+        // server = start_webserver(); 
+        start_webserver(); 
 	}
 	else {
 		ESP_LOGI(TAG, "Initialize completed");

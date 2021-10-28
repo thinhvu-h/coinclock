@@ -5,8 +5,6 @@
 
 u8g2_t u8g2;
 
-static const char *TAG = "DISPLAY";
-
 extern char coinname[10];
 extern double coinvalue;
 extern uint32_t system_count;

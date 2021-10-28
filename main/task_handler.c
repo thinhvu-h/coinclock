@@ -6,8 +6,6 @@
 
 #include "hub_display.h"
 
-extern uint32_t system_count = 0;
-
 static char *TAG = "COIN_HANDLER";
 
 #define WEB_SERVER "api.coincu.com"
@@ -23,9 +21,9 @@ static const char *REQUEST = "GET " WEB_COMMAND " HTTP/1.1\r\n"
     "\r\n";
 
 extern uint8_t wifi_status;
-
-extern char coinname[10] = {};          // BTC/USDT
-extern double coinvalue = 0;          // 57394.949106
+uint32_t system_count = 0;
+char coinname[10] = {};          // BTC/USDT
+double coinvalue = 0;          // 57394.949106
 
 char body[8192];
 cJSON *root;

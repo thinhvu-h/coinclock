@@ -2,3 +2,5 @@ build/
 .vscode/
 .DS_Store
 sdkconfig
+sdkconfig.old
+main/.DS_Store
