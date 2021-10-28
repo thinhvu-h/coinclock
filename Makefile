@@ -3,7 +3,7 @@
 # project subdirectory.
 #
 
-PROJECT_NAME := coin_ticker
+PROJECT_NAME := coinclock
 PROJECT_VER := "1.0"
 
 include $(IDF_PATH)/make/project.mk

@@ -14,7 +14,6 @@
 #include "lwip/netdb.h"
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
-#include "spiffs_vfs.h"
 #include "esp_netif.h"
 
 #include "cJSON.h"
