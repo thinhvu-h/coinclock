@@ -255,6 +255,8 @@ static esp_err_t root_post_handler(httpd_req_t *req)
     char buf[100];
     int ret, remaining = req->content_len;
 
+    ESP_LOGI(TAG, "POST %s", req->uri);
+
     while (remaining > 0) {
         /* Read the data for the request */
         if ((ret = httpd_req_recv(req, buf,
@@ -282,7 +284,7 @@ static esp_err_t root_post_handler(httpd_req_t *req)
 }
 
 static const httpd_uri_t post_config = {
-    .uri       = "/post",
+    .uri       = "/",
     .method    = HTTP_POST,
     .handler   = root_post_handler,
     .user_ctx  = NULL
@@ -290,6 +292,7 @@ static const httpd_uri_t post_config = {
 
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
+    ESP_LOGI(TAG, "GET %s", req->uri);
     httpd_resp_set_type(req, "text/html");
     httpd_resp_send(req, (const char*)server_index_html_start, server_index_html_end - server_index_html_start);
     // httpd_resp_set_type(req, "text/css");
@@ -297,6 +300,12 @@ static esp_err_t root_get_handler(httpd_req_t *req)
 
     return ESP_OK;
 }
+
+static const httpd_uri_t get_config = {
+    .uri       = "/",
+    .method    = HTTP_GET,
+    .handler   = root_get_handler
+};
 
 esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 {
@@ -313,12 +322,6 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "Some 404 error message");
     return ESP_FAIL;
 }
-
-static const httpd_uri_t get_config = {
-    .uri       = "/",
-    .method    = HTTP_GET,
-    .handler   = root_get_handler
-};
 
 static httpd_handle_t start_webserver(void)
 {

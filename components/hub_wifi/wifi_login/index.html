@@ -118,21 +118,14 @@
 </head>
 
 <body >
-	<form action="/post" method="post">
+	<form method="post">
   <h1>CoinClock Setup</h1>
-  <input placeholder="WiFi ID" type="text" required="">
-  <input placeholder="Password" type="password" required="">
+  <input placeholder="WiFi ID" type="text" value="" required="">
+  <input placeholder="Password" type="password" value="" required="">
   <input placeholder="Coincu username" type="text" required="">
   <input placeholder="CoinClock name" type="text" required="">
-  <button type="submit" onclick="SubmitClicked();">Submit</button>
-</form>
-<script>
-  function SubmitClicked () {
-    var xhttp = new XMLHttpRequest();
-    xhttp.open("post", "/post", true);
-    xhttp.send();
-  }
-</script>
+  <button type="submit">Submit</button>
+  </form>
 </body>
 
 </html>
