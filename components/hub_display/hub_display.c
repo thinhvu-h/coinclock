@@ -127,7 +127,7 @@ static void hub_display(char* coinname, char* USD, char* Binance)
     if(wifi_status == 0x01) {
         u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
         // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
-        u8g2_DrawStr(&u8g2, 22, 16, coinname);
+        u8g2_DrawStr(&u8g2, 28, 16, coinname);
 
         u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
         u8g2_DrawStr(&u8g2, 10, 42, USD);

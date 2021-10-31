@@ -19,8 +19,12 @@ menu "CoinClock Configuration"
 		default COIN_CU_API
 		config COIN_CU_API
             bool "Load coincu api"
-        config COIN_GECKO_API
-            bool "Load coingecko api"
+		config COIN_GECKO_BTC_USDT_API
+            bool "Load coingecko api - Bitcoin (BTC) - USD"
+        config COIN_GECKO_LFW_USDT_API
+            bool "Load coingecko api - Legends of Fantasy War (LFW) - USD"
+		config COIN_GECKO_AXS_USDT_API
+            bool "Load coingecko api - Axie Infinity (AXS) - USD"
     endchoice
 	
 	config COIN_CU_API_WEB_URL
@@ -50,28 +54,82 @@ menu "CoinClock Configuration"
 			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot
 			example 2: /api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
 
-	config COIN_GECKO_API_WEB_URL
+	config COIN_GECKO_AXS_USDT_API_WEB_URL
         string "Manual coin API"
-        default "https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd"
-        depends on COIN_GECKO_API
+        default "https://api.coingecko.com/api/v3/simple/price?ids=axie-infinity&vs_currencies=usd"
+        depends on COIN_GECKO_AXS_USDT_API
         help
             Manual config COIN_API.
 			example 1: https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot
 			example 2: https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
 	
-	config COIN_GECKO_API_WEB_SERVER
+	config COIN_GECKO_AXS_USDT_API_WEB_SERVER
         string "Manual WEB_SERVER"
         default "api.coingecko.com"
-        depends on COIN_GECKO_API
+        depends on COIN_GECKO_AXS_USDT_API
         help
             Manual config WEB_SERVER.
 			example 1: api.coincu.com
 			example 2: api.coingecko.com
 	
-	config COIN_GECKO_API_WEB_COMMAND
+	config COIN_GECKO_AXS_USDT_API_WEB_COMMAND
+        string "Manual coin API"
+        default "/api/v3/simple/price?ids=axie-infinity&vs_currencies=usd"
+        depends on COIN_GECKO_AXS_USDT_API
+        help
+            Manual config WEB_COMMAND.
+			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: /api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+
+	config COIN_GECKO_LFW_USDT_API_WEB_URL
+        string "Manual coin API"
+        default "https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd"
+        depends on COIN_GECKO_LFW_USDT_API
+        help
+            Manual config COIN_API.
+			example 1: https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+	
+	config COIN_GECKO_LFW_USDT_API_WEB_SERVER
+        string "Manual WEB_SERVER"
+        default "api.coingecko.com"
+        depends on COIN_GECKO_LFW_USDT_API
+        help
+            Manual config WEB_SERVER.
+			example 1: api.coincu.com
+			example 2: api.coingecko.com
+	
+	config COIN_GECKO_LFW_USDT_API_WEB_COMMAND
         string "Manual coin API"
         default "/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd"
-        depends on COIN_GECKO_API
+        depends on COIN_GECKO_LFW_USDT_API
+        help
+            Manual config WEB_COMMAND.
+			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: /api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+	
+	config COIN_GECKO_BTC_USDT_API_WEB_URL
+        string "Manual coin API"
+        default "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        depends on COIN_GECKO_BTC_USDT_API
+        help
+            Manual config COIN_API.
+			example 1: https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+	
+	config COIN_GECKO_BTC_USDT_API_WEB_SERVER
+        string "Manual WEB_SERVER"
+        default "api.coingecko.com"
+        depends on COIN_GECKO_BTC_USDT_API
+        help
+            Manual config WEB_SERVER.
+			example 1: api.coincu.com
+			example 2: api.coingecko.com
+	
+	config COIN_GECKO_BTC_USDT_API_WEB_COMMAND
+        string "Manual coin API"
+        default "/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+        depends on COIN_GECKO_BTC_USDT_API
         help
             Manual config WEB_COMMAND.
 			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot

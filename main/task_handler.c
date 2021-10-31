@@ -14,17 +14,21 @@ static char *TAG = "COIN_HANDLER";
 
 #define WEB_PORT "443"
 #if(CONFIG_COIN_CU_API)
-
 #define WEB_SERVER 		CONFIG_COIN_CU_API_WEB_SERVER
 #define WEB_COMMAND 	CONFIG_COIN_CU_API_WEB_COMMAND
 #define WEB_URL 		CONFIG_COIN_CU_API_WEB_URL
-
-#elif(CONFIG_COIN_GECKO_API)
-
-#define WEB_SERVER 		CONFIG_COIN_GECKO_API_WEB_SERVER
-#define WEB_COMMAND 	CONFIG_COIN_GECKO_API_WEB_COMMAND
-#define WEB_URL 		CONFIG_COIN_GECKO_API_WEB_URL
-
+#elif(CONFIG_COIN_GECKO_BTC_USDT_API)
+#define WEB_SERVER 		CONFIG_COIN_GECKO_BTC_USDT_API_WEB_SERVER
+#define WEB_COMMAND 	CONFIG_COIN_GECKO_BTC_USDT_API_WEB_COMMAND
+#define WEB_URL 		CONFIG_COIN_GECKO_BTC_USDT_API_WEB_URL
+#elif(CONFIG_COIN_GECKO_LFW_USDT_API)
+#define WEB_SERVER 		CONFIG_COIN_GECKO_LFW_USDT_API_WEB_SERVER
+#define WEB_COMMAND 	CONFIG_COIN_GECKO_LFW_USDT_API_WEB_COMMAND
+#define WEB_URL 		CONFIG_COIN_GECKO_LFW_USDT_API_WEB_URL
+#elif(CONFIG_COIN_GECKO_AXS_USDT_API)
+#define WEB_SERVER 		CONFIG_COIN_GECKO_AXS_USDT_API_WEB_SERVER
+#define WEB_COMMAND 	CONFIG_COIN_GECKO_AXS_USDT_API_WEB_COMMAND
+#define WEB_URL 		CONFIG_COIN_GECKO_AXS_USDT_API_WEB_URL
 #else
 #error "Invalid method for loading certs"
 #endif
@@ -105,7 +109,7 @@ void coin_handler(void) {
 				char *end_header = strstr(buf, "\r\n\r\n");
 				if (end_header != NULL) {
 					int position = end_header - buf;
-					#if(CONFIG_COIN_GECKO_API)
+					#if(CONFIG_COIN_GECKO_BTC_USDT_API || CONFIG_COIN_GECKO_LFW_USDT_API || CONFIG_COIN_GECKO_AXS_USDT_API)
 					strcat(body, buf+position+6);
 					#else
 					strcat(body, buf+position+4); // trả lại +4 khi chuyển qua coincu // do header
@@ -129,7 +133,7 @@ void coin_handler(void) {
 		return;
 	}
 
-	#if(CONFIG_COIN_GECKO_API)
+	#if(CONFIG_COIN_GECKO_BTC_USDT_API || CONFIG_COIN_GECKO_LFW_USDT_API || CONFIG_COIN_GECKO_AXS_USDT_API)
 	ESP_LOGI(TAG,"QUICK_API_TEST --- Parsing child JSON field");
 	char *objectname = root->child->string;
 	if(objectname == NULL) {
@@ -139,7 +143,13 @@ void coin_handler(void) {
 	}
 	printf("coin name %s\n", objectname); // get "key": "bitcoin"
 	memset(coinname,0,strlen(coinname));
+	#if(CONFIG_COIN_GECKO_BTC_USDT_API)
+	strcpy(coinname, "USD/BTC");
+	#elif(CONFIG_COIN_GECKO_LFW_USDT_API)
 	strcpy(coinname, "USD/LFW");
+	#elif(CONFIG_COIN_GECKO_AXS_USDT_API)
+	strcpy(coinname, "USD/AXS");
+	#endif
 
 	const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, objectname); // get usd
 	cJSON *price = name->child;
