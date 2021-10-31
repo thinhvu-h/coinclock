@@ -1,10 +1,73 @@
-menu "Coin Ticker Configuration"
+menu "CoinClock Configuration"
 
     config DEBUG_ENABLE
         bool "debug enable"
         default y
         help
             Enable or disable debug.
+	
+	choice API_SOURCE
+		prompt "choice API source"
+		default COIN_CU_API
+		config COIN_CU_API
+            bool "Load coincu api"
+        config COIN_GECKO_API
+            bool "Load coingecko api"
+    endchoice
+	
+	config COIN_CU_API_WEB_URL
+        string "Manual coin API"
+        default "https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot"
+        depends on COIN_CU_API
+        help
+            Manual config COIN_API.
+			example 1: https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+	
+	config COIN_CU_API_WEB_SERVER
+        string "Manual WEB_SERVER"
+        default "api.coincu.com"
+        depends on COIN_CU_API
+        help
+            Manual config WEB_SERVER.
+			example 1: api.coincu.com
+			example 2: api.coingecko.com
+	
+	config COIN_CU_API_WEB_COMMAND
+        string "Manual coin API"
+        default "/v1/public/markets/pair/BTC?limit=1&tag=spot"
+        depends on COIN_CU_API
+        help
+            Manual config WEB_COMMAND.
+			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: /api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+
+	config COIN_GECKO_API_WEB_URL
+        string "Manual coin API"
+        default "https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd"
+        depends on COIN_GECKO_API
+        help
+            Manual config COIN_API.
+			example 1: https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: https://api.coingecko.com/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
+	
+	config COIN_GECKO_API_WEB_SERVER
+        string "Manual WEB_SERVER"
+        default "api.coingecko.com"
+        depends on COIN_GECKO_API
+        help
+            Manual config WEB_SERVER.
+			example 1: api.coincu.com
+			example 2: api.coingecko.com
+	
+	config COIN_GECKO_API_WEB_COMMAND
+        string "Manual coin API"
+        default "/api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd"
+        depends on COIN_GECKO_API
+        help
+            Manual config WEB_COMMAND.
+			example 1: /v1/public/markets/pair/BTC?limit=1&tag=spot
+			example 2: /api/v3/simple/price?ids=legends-of-fantasy-war&vs_currencies=usd
 
 	config QUICK_WIFI_START
 		bool "Quick Setup WiFi enable"

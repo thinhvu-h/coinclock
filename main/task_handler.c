@@ -8,10 +8,26 @@
 
 static char *TAG = "COIN_HANDLER";
 
-#define WEB_SERVER "api.coincu.com"
+// #define WEB_SERVER "api.coincu.com"
+// #define WEB_COMMAND "/v1/public/markets/pair/BTC?limit=1&tag=spot"
+// #define WEB_URL "https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot"
+
 #define WEB_PORT "443"
-#define WEB_COMMAND "/v1/public/markets/pair/BTC?limit=1&tag=spot"
-#define WEB_URL "https://api.coincu.com/v1/public/markets/pair/BTC?limit=1&tag=spot"
+#if(CONFIG_COIN_CU_API)
+
+#define WEB_SERVER 		CONFIG_COIN_CU_API_WEB_SERVER
+#define WEB_COMMAND 	CONFIG_COIN_CU_API_WEB_COMMAND
+#define WEB_URL 		CONFIG_COIN_CU_API_WEB_URL
+
+#elif(CONFIG_COIN_GECKO_API)
+
+#define WEB_SERVER 		CONFIG_COIN_GECKO_API_WEB_SERVER
+#define WEB_COMMAND 	CONFIG_COIN_GECKO_API_WEB_COMMAND
+#define WEB_URL 		CONFIG_COIN_GECKO_API_WEB_URL
+
+#else
+#error "Invalid method for loading certs"
+#endif
 
 // HTTP request
 static const char *REQUEST = "GET " WEB_COMMAND " HTTP/1.1\r\n"
@@ -84,32 +100,56 @@ void coin_handler(void) {
 			ESP_LOGI(TAG, "connection closed");
 			break;
 		} else {
+			// ESP_LOGI(TAG,"buff: %s",buf);
 			if(count_packet >= (1024/(sizeof(buf)/sizeof(buf[0])))) {
 				char *end_header = strstr(buf, "\r\n\r\n");
 				if (end_header != NULL) {
 					int position = end_header - buf;
-					strcat(body, buf+position+4);
+					#if(CONFIG_COIN_GECKO_API)
+					strcat(body, buf+position+6);
+					#else
+					strcat(body, buf+position+4); // trả lại +4 khi chuyển qua coincu // do header
+					#endif
 					// ESP_LOGI(TAG,"body after removed header: %s",body);
 				} else {
-					// buffer is set 2048 to make sure header also inside
-					// so else case only store body
 					strcat(body, buf);
 				}  
 			} 
 		}
 	} while(1);
 				
-	// ESP_LOGI(TAG, "parsed body : %s", body);
-	// ESP_LOGI(TAG,"Parsing JSON");
+	ESP_LOGI(TAG, "parsed body : %s", body);
+	ESP_LOGI(TAG,"Parsing JSON");
 	root = cJSON_Parse(body);
 	if (root == NULL)
 	{
-		cJSON_Delete(root);
-		esp_tls_conn_delete(tls);
 		ESP_LOGE(TAG, "JSON parse failed, root NULL, close TLS");
+		cJSON_Delete(root);
+		esp_tls_conn_delete(tls);	
 		return;
 	}
 
+	#if(CONFIG_COIN_GECKO_API)
+	ESP_LOGI(TAG,"QUICK_API_TEST --- Parsing child JSON field");
+	char *objectname = root->child->string;
+	if(objectname == NULL) {
+		ESP_LOGE(TAG, "objectname NULL");
+		cJSON_Delete(root);
+		return;
+	}
+	printf("coin name %s\n", objectname); // get "key": "bitcoin"
+	memset(coinname,0,strlen(coinname));
+	strcpy(coinname, "USD/LFW");
+
+	const cJSON *name = cJSON_GetObjectItemCaseSensitive(root, objectname); // get usd
+	cJSON *price = name->child;
+
+	if(cJSON_IsNumber(price)) {
+		printf("trading price %f\n", price->valuedouble);
+		coinvalue = price->valuedouble;
+	}
+	#else
+	ESP_LOGI(TAG,"--- Parsing child JSON field");
 	cJSON *markets = cJSON_GetObjectItemCaseSensitive(root->child, "markets");
 	cJSON *market = NULL;
 	cJSON_ArrayForEach(market, markets)
@@ -135,6 +175,7 @@ void coin_handler(void) {
 			coinvalue = price->valuedouble;
 		}
 	}
+	#endif
 	cJSON_Delete(root);
 	ESP_LOGI(TAG,"Parsing DONE; close TLS");
 	exit:

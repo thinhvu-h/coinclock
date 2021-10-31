@@ -47,40 +47,59 @@ void hub_battery_charging_display() {
 char result_buffer[15] = {'\0'};
 char* double2StringConvert(double number) {
 
+    char temp_buff[15] = {'\0'};
     char after_dot_buf[10] = {'\0'};
     char thousand_split_buf[10] = {'\0'};
-    uint8_t coefficient_floatPart = 0;
+    // uint8_t hesofloat = 0;
 
+    memset(temp_buff,0,strlen(temp_buff));
     memset(result_buffer,0,strlen(result_buffer));
     memset(after_dot_buf,0,strlen(after_dot_buf));
     memset(thousand_split_buf,0,strlen(thousand_split_buf));
 
     // Extract integer part
     int ipart = (int)number;    //66008.274045
+    // int ipart = 100000;    //66008.274045
     int extract_ipart = 0;
     if(ipart/1000 > 1) {
         extract_ipart = (int)ipart/1000;
         sprintf(result_buffer, "%d", extract_ipart);
         // Extract floating part of integer part
         double fipart = (double)ipart/1000 - (double)extract_ipart; // 0.008 //1,234 0008.0
-        // printf("fipart: %f\n", fipart);
-        sprintf(thousand_split_buf, "%03d", (int)(fipart*pow(10,3)));
-        // printf("thousand_split_buf: %s\n", thousand_split_buf);
+        printf("fipart: %f\n", fipart);
+        sprintf(thousand_split_buf, "%03d", (int)(fipart*pow(10,3)+0.5));
+        printf("thousand_split_buf: %s\n", thousand_split_buf);
         strcat(result_buffer, ",");
         strcat(result_buffer, thousand_split_buf);
     }
     else {
-        sprintf(result_buffer, "%d", ipart);
+        sprintf(temp_buff, "%d", ipart);
+        printf("temp_buff ipart length: %d\n", strlen(temp_buff));
+        for(int i=0;i<(6-strlen(temp_buff));i++) {
+            strcat(result_buffer," ");
+        }
+        strcat(result_buffer,temp_buff);        
     }
-    
-    coefficient_floatPart = 8-strlen(result_buffer);
-    printf("coin int: %s , length: %d, coefficient_floatPart %d\n", result_buffer, strlen(result_buffer), coefficient_floatPart);
+    printf("coin int: %s , length: %d\n", result_buffer, strlen(result_buffer));
 
+    // if(strlen(temp_buff) <= 2) {
+    //     hesofloat = strlen(temp_buff);
+    // } else if (strlen(temp_buff) == 3) {
+    //     hesofloat = strlen(temp_buff) - 1;
+    // }
+    
     // Extract floating part of number
-    double fnpart = number - (double)ipart;
-    // printf("fnpart: %f\n", fnpart);
-    sprintf(after_dot_buf, "%05d", (int)(fnpart*pow(10,coefficient_floatPart)));
-    printf("coin double: %s\n", after_dot_buf);
+    memset(temp_buff,0,strlen(temp_buff));
+    double fnpart = number - (double)ipart;  
+    // double fnpart = 0.008;
+    printf("fnpart: %f\n", fnpart);
+    sprintf(temp_buff, "%02d", (int)(fnpart*pow(10,2)+0.5));
+    printf("coin double: %s\n", temp_buff);
+    strcat(after_dot_buf, temp_buff);
+    printf("temp_buff after dot length: %d\n", strlen(temp_buff));
+    for(int i=0;i<(4-strlen(temp_buff));i++) {
+        strcat(after_dot_buf," ");
+    }
 
     strcat(result_buffer, ".");
     strcat(result_buffer, after_dot_buf);
@@ -108,7 +127,7 @@ static void hub_display(char* coinname, char* USD, char* Binance)
     if(wifi_status == 0x01) {
         u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
         // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
-        u8g2_DrawStr(&u8g2, 20, 16, coinname);
+        u8g2_DrawStr(&u8g2, 22, 16, coinname);
 
         u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
         u8g2_DrawStr(&u8g2, 10, 42, USD);

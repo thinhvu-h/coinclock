@@ -26,25 +26,6 @@ static void core1_handle_event(event_t *event);
 static void core0_task(void *pvParameter);
 static void core1_task(void *pvParameter);
 
-// static void _wifi_init_completed(void);
-// static void _wifi_on_connected(void);
-// static void _wifi_on_disconnected(uint8_t);
-// #if(CONFIG_PROVISION_MODE_BLE | CONFIG_PROVISION_MODE_WIFI)
-// static void _wifi_on_provisioning(void);
-// static void _wifi_on_provisioned(void);
-// #endif
-// static void _mqtt_on_init_completed(void);
-// static void _mqtt_on_connected(void);
-// static void _mqtt_on_disconnected(uint8_t);
-// static void _mqtt_on_subscribe_registered(void);
-// static void _mqtt_on_transmitted(mqtt_transmit_type_t mqttType);
-// static void _mqtt_on_transmitting(mqtt_transmit_type_t mqttType);
-// static void _ota_on_start(void);
-// static void _ota_on_end(void);
-
-// static void _ble_on_scan_discovered(esp_bd_addr_t addr,uint8_t batt, int8_t rssi);
-// static void _gpio_on_pair_completed(void);
-
 static void core0_handle_event(event_t *event)
 {
 	// ESP_LOGI(TAG, "CORE 0, event %d, event size %d", event->type, sizeof(*event));

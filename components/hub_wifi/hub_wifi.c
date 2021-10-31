@@ -82,11 +82,11 @@ void wifi_sntp_check() {
             ntp_init = 1;
         }
         else {
-            int retry = 0;
-            const int retry_count = 10;
-            while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-                ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
+            if(sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET ) {
+                ESP_LOGI(TAG, "time is synced...");
+            } else {
+                ESP_LOGI(TAG, "time is not sync");
+                return;
             }
             time(&now);
 
