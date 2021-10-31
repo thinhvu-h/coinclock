@@ -44,5 +44,9 @@ extern void hub_wifi_init(void);
 #endif
 
 extern uint8_t wifi_status;
+extern char SSID[32];
+extern char PWD[64];
+extern char USER_NAME[64];
+extern char DEVICE_NAME[64];
 
 #endif /*HUB_WIFI_H*/
