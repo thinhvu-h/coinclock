@@ -5,6 +5,14 @@ menu "CoinClock Configuration"
         default y
         help
             Enable or disable debug.
+
+	config RESET_PROVISIONED
+		bool
+		default y
+		prompt "Reset provisioned status of the device"
+		help
+			This erases the NVS to reset provisioned status of the device on every reboot.
+			Provisioned status is determined by the Wi-Fi STA configuration, saved on the NVS.
 	
 	choice API_SOURCE
 		prompt "choice API source"
