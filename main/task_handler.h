@@ -57,6 +57,7 @@ void task_5000ms(void);
 void coin_handler(void);
 
 extern char coinname[10];          // BTC/USDT
+extern char coinexchange[10];
 extern double coinvalue;          // 57394.949106
 extern uint32_t system_count;
 

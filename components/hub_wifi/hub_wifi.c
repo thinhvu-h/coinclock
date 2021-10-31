@@ -18,6 +18,7 @@
 
 #include "cJSON.h"
 #include <esp_http_server.h>
+#include "esp_sntp.h"
 
 
 /* static variables */
@@ -65,6 +66,50 @@ char DEVICE_NAME[64];
 void wifi_init_softap();
 esp_err_t hub_is_provisioned();
 
+// wait for time to be set
+time_t now = 0;
+struct tm timeinfo = { 0 };
+int ntp_init = 0;
+void wifi_sntp_check() {
+    ESP_LOGI(TAG, "SNTP checking...");
+    if(wifi_status != 0x01) return;
+    if (wifi_status) {
+        if(ntp_init == 0) {
+            sntp_setoperatingmode(SNTP_OPMODE_POLL);
+            sntp_setservername(0, "vn.pool.ntp.org");
+            ESP_LOGI(TAG, "Initializing SNTP");
+            sntp_init();
+            ntp_init = 1;
+        }
+        else {
+            int retry = 0;
+            const int retry_count = 10;
+            while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+                ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
+            }
+            time(&now);
+
+            // change the timezone to VN
+            setenv("TZ", "CST-7", 1);
+            tzset();
+
+            localtime_r(&now, &timeinfo);
+            
+            // print the actual time with different formats
+            char buffer[100];
+            printf("Actual time in VN:\n");
+            strftime(buffer, sizeof(buffer), "%d/%m/%Y %H:%M:%S", &timeinfo);
+            printf("- %s\n", buffer);
+            strftime(buffer, sizeof(buffer), "%A, %d %B %Y", &timeinfo);
+            printf("- %s\n", buffer);
+            strftime(buffer, sizeof(buffer), "Today is day %j of year %Y", &timeinfo);
+            printf("- %s\n", buffer);
+            printf("\n");
+        }
+    }
+}
+
 #if(CONFIG_QUICK_WIFI_START)
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
@@ -89,51 +134,6 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         s_retry_num = 0;
         xEventGroupSetBits(wifi_event_group, STA_CONNECTED_BIT);
         wifi_status = 0x01;
-    }
-}
-
-#include "esp_sntp.h"
-// wait for time to be set
-time_t now = 0;
-struct tm timeinfo = { 0 };
-int ntp_init = 0;
-void wifi_sntp_check() {
-    if (bits & STA_CONNECTED_BIT) {
-        if(ntp_init == 0) {
-            sntp_setoperatingmode(SNTP_OPMODE_POLL);
-            sntp_setservername(0, "vn.pool.ntp.org");
-            ESP_LOGI(TAG, "Initializing SNTP");
-            sntp_init();
-            ntp_init = 1;
-        }
-        else {
-            int retry = 0;
-            const int retry_count = 10;
-            while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
-                #if(CONFIG_DEBUG_ENABLE)
-                ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
-                #endif
-                vTaskDelay(2000 / portTICK_PERIOD_MS);
-            }
-            time(&now);
-
-            // change the timezone to VN
-            setenv("TZ", "CST-7", 1);
-            tzset();
-
-            localtime_r(&now, &timeinfo);
-            
-            // print the actual time with different formats
-            char buffer[100];
-            printf("Actual time in VN:\n");
-            strftime(buffer, sizeof(buffer), "%d/%m/%Y %H:%M:%S", &timeinfo);
-            printf("- %s\n", buffer);
-            strftime(buffer, sizeof(buffer), "%A, %d %B %Y", &timeinfo);
-            printf("- %s\n", buffer);
-            strftime(buffer, sizeof(buffer), "Today is day %j of year %Y", &timeinfo);
-            printf("- %s\n", buffer);
-            printf("\n");
-        }
     }
 }
 
@@ -362,36 +362,27 @@ static esp_err_t root_get_handler(httpd_req_t *req)
     httpd_resp_sendstr_chunk(req, "<!DOCTYPE html><html>");
 
     httpd_resp_sendstr_chunk(req, "<head>");
-    httpd_resp_sendstr_chunk(req, "<title>");
-    httpd_resp_sendstr_chunk(req, "CoinClock Setup");
-    httpd_resp_sendstr_chunk(req, "</title>");
     httpd_resp_sendstr_chunk(req, "<style>");
     httpd_resp_sendstr_chunk(req, "h1, input::-webkit-input-placeholder, button { font-family: 'roboto', sans-serif; transition: all 0.3s ease-in-out;}");
     httpd_resp_sendstr_chunk(req, "h1 {height: 50px; width: 100%; font-size: 18px; background: #18aa8d;color: white;line-height: 150%;border-radius: 3px 3px 0 0;box-shadow: 0 2px 5px 1px rgba(0, 0, 0, 0.2);}");
     httpd_resp_sendstr_chunk(req, "form {box-sizing: border-box; width: 260px; margin: 100px auto 0; box-shadow: 2px 2px 5px 1px rgba(0, 0, 0, 0.2); padding-bottom: 40px; border-radius: 3px;}");
     httpd_resp_sendstr_chunk(req, "form h1 {box-sizing: border-box; padding: 20px; }");
-    // httpd_resp_sendstr_chunk(req, "form {display: grid;padding: 1em; background: #f9f9f9; border: 1px solid #c1c1c1; margin: 2rem auto 0 auto; max-width: 400px; padding: 1em;}}");
-    // httpd_resp_sendstr_chunk(req, "form input {background: #fff;border: 1px solid #9c9c9c;}");
-    // httpd_resp_sendstr_chunk(req, "form button {background: lightgrey; padding: 0.7em;width: 100%; border: 0;");
-    // httpd_resp_sendstr_chunk(req, "label {padding: 0.5em 0.5em 0.5em 0;}");
     httpd_resp_sendstr_chunk(req, "input {margin: 40px 25px; width: 200px; display: block; border: none; padding: 10px 0; border-bottom: solid 1px #1abc9c; transition: all 0.3s cubic-bezier(0.64, 0.09, 0.08, 1); background: linear-gradient(to bottom, rgba(255, 255, 255, 0) 96%, #1abc9c 4%); background-position: -200px 0; background-size: 200px 100%; background-repeat: no-repeat; color: #0e6252;}");
     httpd_resp_sendstr_chunk(req, "input:focus, input:valid {box-shadow: none; outline: none; background-position: 0 0;}");
     httpd_resp_sendstr_chunk(req, "input:focus::-webkit-input-placeholder, input:valid::-webkit-input-placeholder {color: #1abc9c; font-size: 11px; transform: translateY(-20px); visibility: visible !important;}");
     httpd_resp_sendstr_chunk(req, "button {border: none;background: #1abc9c;cursor: pointer;border-radius: 3px;padding: 6px;width: 200px;color: white;margin-left: 25px;box-shadow: 0 3px 6px 0 rgba(0, 0, 0, 0.2);}");
     httpd_resp_sendstr_chunk(req, "button:hover {transform: translateY(-3px);box-shadow: 0 6px 6px 0 rgba(0, 0, 0, 0.2);}");
-    // httpd_resp_sendstr_chunk(req, "input {padding: 0.7em;margin-bottom: 0.5rem;}");
-    // httpd_resp_sendstr_chunk(req, "input:focus {outline: 10px solid gold;}");
-    // httpd_resp_sendstr_chunk(req, "@media (min-width: 300px) {form {grid-template-columns: 200px 1fr; grid-gap: 16px;} label { text-align: right; grid-column: 1 / 2; } input, button { grid-column: 2 / 3; }}");
-    httpd_resp_sendstr_chunk(req, ".footer-bar{display: block;width: 100%;height: 45px;line-height: 45px;background: #111;border-top: 1px solid #E62600;position: fixed;bottom: 0;left: 0;}");
+    httpd_resp_sendstr_chunk(req, ".footer-bar{display: block;width: 100%; height: 45px;line-height: 45px;background: #111;border-top: 1px solid #E62600;position: fixed;bottom: 0;left: 0;}");
     httpd_resp_sendstr_chunk(req, ".footer-bar .article-wrapper{font-family: arial, sans-serif;font-size: 14px;color: #888;float: left;margin-left: 10%;}");
     httpd_resp_sendstr_chunk(req, ".footer-bar .article-link a, .footer-bar .article-link a:visited{text-decoration: none;color: #fff;}");
-    httpd_resp_sendstr_chunk(req, ".site-link a, .site-link a:visited{color: #888;font-size: 14px;font-family: arial, sans-serif;float: right;margin-right: 10%;text-decoration: none;}");
+    httpd_resp_sendstr_chunk(req, ".site-link a, .site-link a:visited{color: #888; font-size: 14px; font-family: arial, sans-serif; float: right; margin-right: 10%; text-decoration: none;}");
     httpd_resp_sendstr_chunk(req, ".site-link a:hover{color: #E62600;}");
     httpd_resp_sendstr_chunk(req, "</style>");
     httpd_resp_sendstr_chunk(req, "</head>");
 
     httpd_resp_sendstr_chunk(req, "<body>");
     httpd_resp_sendstr_chunk(req, "<form class=\"form1\" id=\"loginForm\" action=\"\">");
+    httpd_resp_sendstr_chunk(req, "<h1>CoinClock Setup</h1>");
 
     // httpd_resp_sendstr_chunk(req, "<label for=\"SSID\">WiFi Name</label>");
     httpd_resp_sendstr_chunk(req, "<input type=\"text\" id=\"ssid\" name=\"ssid\" placeholder=\"WiFi SSID\" required=\"\" maxlength=\"64\" minlength=\"4\">");

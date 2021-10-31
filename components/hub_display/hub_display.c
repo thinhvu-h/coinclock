@@ -6,6 +6,7 @@
 u8g2_t u8g2;
 
 extern char coinname[10];
+extern char coinexchange[10];
 extern double coinvalue;
 extern uint32_t system_count;
 extern uint8_t wifi_status; 
@@ -34,6 +35,7 @@ void hub_display_init() {
     u8g2_InitDisplay(&u8g2);
 
     u8g2_ClearBuffer(&u8g2);
+    u8g2_SendBuffer(&u8g2);
     // wake up the display
     u8g2_SetPowerSave(&u8g2, 0);
 }
@@ -47,6 +49,7 @@ char* double2StringConvert(double number) {
 
     char after_dot_buf[10] = {'\0'};
     char thousand_split_buf[10] = {'\0'};
+    uint8_t coefficient_floatPart = 0;
 
     memset(result_buffer,0,strlen(result_buffer));
     memset(after_dot_buf,0,strlen(after_dot_buf));
@@ -69,18 +72,20 @@ char* double2StringConvert(double number) {
     else {
         sprintf(result_buffer, "%d", ipart);
     }
-    // printf("coin int: %s\n", result_buffer);
+    
+    coefficient_floatPart = 8-strlen(result_buffer);
+    printf("coin int: %s , length: %d, coefficient_floatPart %d\n", result_buffer, strlen(result_buffer), coefficient_floatPart);
 
     // Extract floating part of number
     double fnpart = number - (double)ipart;
     // printf("fnpart: %f\n", fnpart);
-    sprintf(after_dot_buf, "%03d", (int)(fnpart*pow(10,3)));
-    // printf("coin double: %s\n", after_dot_buf);
+    sprintf(after_dot_buf, "%05d", (int)(fnpart*pow(10,coefficient_floatPart)));
+    printf("coin double: %s\n", after_dot_buf);
 
     strcat(result_buffer, ".");
     strcat(result_buffer, after_dot_buf);
 
-    // printf("coin in string: %s\n", result_buffer);
+    printf("coin in string: %s\n", result_buffer);
     return result_buffer;
 }
 
@@ -96,33 +101,33 @@ void hub_draw() {
     hub_display(coinname, coinvalue_str, systemCount);
 }
 
-static void hub_display(char* coin, char* USD, char* Binance) 
+static void hub_display(char* coinname, char* USD, char* Binance) 
 {    
     u8g2_ClearBuffer(&u8g2);
 
     if(wifi_status == 0x01) {
-        u8g2_DrawXBM(&u8g2, 2, 5, 15, 15, wifi_icon);
-    } else {
-        u8g2_ClearBuffer(&u8g2);
+        u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
+        // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
+        u8g2_DrawStr(&u8g2, 20, 16, coinname);
+
+        u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
+        u8g2_DrawStr(&u8g2, 10, 42, USD);
+
+        u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
+        u8g2_DrawStr(&u8g2, 10, 62, coinexchange);
+    } 
+    else {
+        u8g2_SetFont(&u8g2, u8g2_font_helvB08_tf);
+        // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
+        u8g2_DrawStr(&u8g2, 14, 38, "WIFI DISCONNECTED");
     }
-
-    u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
-    // u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
-    u8g2_DrawStr(&u8g2, 28, 16, coin);
-
-    u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
-    u8g2_DrawStr(&u8g2, 10, 42, USD);
-
+    // line
     u8g2_DrawHLine(&u8g2, 10, 50, 120);
 
     u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
-    u8g2_DrawStr(&u8g2, 10, 62, "Binance");
-
-    u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
-    u8g2_DrawStr(&u8g2, 62, 62, Binance);
+    u8g2_DrawStr(&u8g2, 66, 62, Binance);
 
     u8g2_DrawXBM(&u8g2, 115, 52, 15, 15, battery_full_icon);
-    
     u8g2_SendBuffer(&u8g2);
     ESP_LOGI("TAG", "Drawed DONE");
 }

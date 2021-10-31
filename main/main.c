@@ -158,14 +158,9 @@ static void core1_handle_event(event_t *event)
 static void core0_task(void *pvParameter)
 {
     event_t *event = NULL;
-
-	#if(CONFIG_QUICK_WIFI_START)
-	wifi_init_sta();
-	#else
-	hub_wifi_init();
-	#endif
-
 	printf("- core0_task started\n\n");
+	
+	hub_display_init();
 
     while (1)
     {
@@ -190,7 +185,11 @@ static void core1_task(void *pvParameter)
 	TimerHandle_t timer_5000ms;
     event_t *event = NULL;
 
-	hub_display_init();
+	#if(CONFIG_QUICK_WIFI_START)
+		wifi_init_sta();
+	#else
+		hub_wifi_init();
+	#endif
 
 	/* Initialize task 1000ms*/
 	timer_1000ms = xTimerCreate("task_1000ms", pdMS_TO_TICKS(2000), pdTRUE, NULL, task_1000ms_cb);

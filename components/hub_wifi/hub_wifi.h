@@ -38,11 +38,11 @@ typedef enum{
 
 #if(CONFIG_QUICK_WIFI_START)
 extern void wifi_init_sta(void);
-extern void wifi_sntp_check();
 #else
 extern void hub_wifi_init(void);
 #endif
 
+extern void wifi_sntp_check();
 extern uint8_t wifi_status;
 extern char SSID[32];
 extern char PWD[64];

@@ -23,6 +23,7 @@ static const char *REQUEST = "GET " WEB_COMMAND " HTTP/1.1\r\n"
 extern uint8_t wifi_status;
 uint32_t system_count = 0;
 char coinname[10] = {};          // BTC/USDT
+char coinexchange[10] = {};          // BTC/USDT
 double coinvalue = 0;          // 57394.949106
 
 char body[8192];
@@ -118,7 +119,15 @@ void coin_handler(void) {
 		cJSON *price = cJSON_GetObjectItemCaseSensitive(market, "price");
 
 		printf("trading platform: %s\n", stockInfo->child->valuestring);
+		memset(coinexchange,0,strlen(coinexchange));
+		strcpy(coinexchange, stockInfo->child->valuestring);
 		if(!strcmp(stockInfo->child->valuestring, "Binance")) {
+			printf("trading pair: %s\n", pair->valuestring);
+			printf("trading price: %f\n", price->valuedouble);
+			memset(coinname,0,strlen(coinname));
+			strcpy(coinname, pair->valuestring);
+			coinvalue = price->valuedouble;
+		} else if(!strcmp(stockInfo->child->valuestring, "PayBito")) {
 			printf("trading pair: %s\n", pair->valuestring);
 			printf("trading price: %f\n", price->valuedouble);
 			memset(coinname,0,strlen(coinname));
@@ -137,10 +146,8 @@ void coin_handler(void) {
  */
 void task_1000ms(void)
 {
-	// ESP_ERROR_CHECK( heap_trace_start(HEAP_TRACE_LEAKS) );
 	coin_handler();
-	// ESP_ERROR_CHECK( heap_trace_stop() );
-	// heap_trace_dump();
+	hub_draw();
 	system_count++;
 	ESP_LOGI("TAG", "system count %d", system_count);
 	ESP_LOGW("task_1000ms", "free Heap size:%d, free: %d", esp_get_free_heap_size(), heap_caps_get_free_size(MALLOC_CAP_8BIT));
@@ -149,8 +156,7 @@ void task_1000ms(void)
 
 void task_5000ms(void)
 {
-	// wifi_sntp_check();
-	hub_draw();
+	wifi_sntp_check();
 	ESP_LOGW("task_5000ms", "free Heap size:%d, free: %d", esp_get_free_heap_size(), heap_caps_get_free_size(MALLOC_CAP_8BIT));
 	printf("\n");
 }
