@@ -482,7 +482,13 @@ esp_err_t hub_is_provisioned()
 {
 #ifdef CONFIG_RESET_PROVISIONED
     ESP_LOGE(TAG, "Reset provisioning");
-    nvs_flash_erase();
+    // nvs_flash_erase();
+    // clear WiFi setting
+	esp_err_t ret = esp_wifi_restore();
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "reset WiFi Setting error %d", ret);
+		return ret;
+	}
 #endif
 
     /* Get WiFi Station configuration */
