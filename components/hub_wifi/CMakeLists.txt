@@ -9,8 +9,8 @@
 # register_component()
 
 idf_component_register(
-    SRCS    "hub_wifi.c"
+    SRCS    "hub_wifi.c" "dns_server.c"
     INCLUDE_DIRS "."
-    PRIV_REQUIRES nvs_flash mdns spiffs fatfs json esp_http_server
+    PRIV_REQUIRES nvs_flash mdns spiffs fatfs json esp_http_server wpa_supplicant esp_wifi
     EMBED_FILES wifi_login/index.html wifi_login/login.css
 )

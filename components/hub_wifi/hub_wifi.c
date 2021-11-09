@@ -19,6 +19,7 @@
 #include "cJSON.h"
 #include <esp_http_server.h>
 #include "esp_sntp.h"
+#include "dns_server.h"
 
 
 /* static variables */
@@ -82,11 +83,11 @@ void wifi_sntp_check() {
             ntp_init = 1;
         }
         else {
-            if(sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET ) {
-                ESP_LOGI(TAG, "time is synced...");
-            } else {
-                ESP_LOGI(TAG, "time is not sync");
-                return;
+            int retry = 0;
+            const int retry_count = 10;
+            while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+                ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+                vTaskDelay(2000 / portTICK_PERIOD_MS);
             }
             time(&now);
 
@@ -416,7 +417,7 @@ static const httpd_uri_t get_config = {
     .handler   = root_get_handler
 };
 
-esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
+esp_err_t http_404_error_handler_old(httpd_req_t *req, httpd_err_code_t err)
 {
     if (strcmp("/", req->uri) == 0) {
         httpd_resp_send_err(req, HTTPD_404_NOT_FOUND, "/ URI is not available");
@@ -432,6 +433,20 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
     return ESP_FAIL;
 }
 
+// HTTP Error (404) Handler - Redirects all requests to the root page
+esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
+{
+    // Set status
+    httpd_resp_set_status(req, "302 Temporary Redirect");
+    // Redirect to the "/" root directory
+    httpd_resp_set_hdr(req, "Location", "/");
+    // iOS requires content in the response to detect a captive portal, simply redirecting is not sufficient.
+    httpd_resp_send(req, "Redirect to the captive portal", HTTPD_RESP_USE_STRLEN);
+
+    ESP_LOGI(TAG, "Redirecting to root");
+    return ESP_OK;
+}
+
 static httpd_handle_t start_webserver(void)
 {
     httpd_handle_t server = NULL;
@@ -443,7 +458,8 @@ static httpd_handle_t start_webserver(void)
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &get_config);
-        httpd_register_uri_handler(server, &post_config);
+        httpd_register_uri_handler(server, &post_config);      
+        httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);  
         return server;
     }
 
@@ -473,22 +489,17 @@ void wifi_init_softap()
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
     ESP_ERROR_CHECK(esp_wifi_start());
-    printf("- Wifi ap starting...\n");   
+    printf("- Wifi ap starting...\n");
 
     start_webserver();
+    start_dns_server();
 }
 
 esp_err_t hub_is_provisioned()
 {
 #ifdef CONFIG_RESET_PROVISIONED
     ESP_LOGE(TAG, "Reset provisioning");
-    // nvs_flash_erase();
-    // clear WiFi setting
-	esp_err_t ret = esp_wifi_restore();
-	if (ret != ESP_OK) {
-		ESP_LOGE(TAG, "reset WiFi Setting error %d", ret);
-		return ret;
-	}
+    nvs_flash_erase();
 #endif
 
     /* Get WiFi Station configuration */
