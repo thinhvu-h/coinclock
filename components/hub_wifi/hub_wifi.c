@@ -19,11 +19,37 @@
 #include "cJSON.h"
 #include <esp_http_server.h>
 #include "esp_sntp.h"
+#include "hub_wifi.h"
+//#include "hub_gpio.h"
+//#include "hub_dns.h"
+#include "scan.c"
+//#include "captdns.h"
 #include "dns_server.h"
+#include "swing_nvs_app.h"
+#include "nvs_sync.h"
 
+
+#define MAX_APs 						10
+#define WIFI_RECONNECT_DELAY_TIMEOUT	2	//time wait for reconnect execute ~ wait time = PERIOD_FIVE_SECOND*WIFI_RECONNECT_DELAY_TIMEOUT
+
+extern uint8_t g_airswing_mode;
+uint32_t system_counter1s;
 
 /* static variables */
 static const char *TAG = "HUB_WIFI";
+static uint8_t wifi_reconnect_delay = 0;
+static wifi_operate_status_t wifi_op_status = WIFI_OP_DEFAULT_STATE;
+uint32_t wifi_error_log_time = 0;
+wifi_error_log_state_t wifi_error_log_state = WIFI_LOG_NO_ERROR;
+wifi_config_t* wifi_manager_config_sta = NULL;
+
+
+/**@brief Function set wifi status
+ */
+static void swing_wifi_set_status(wifi_operate_status_t);
+static void swing_wifi_set_status(wifi_operate_status_t m_state) {
+	wifi_op_status = m_state;
+}
 
 // set AP CONFIG values
 #ifdef CONFIG_AP_HIDE_SSID
@@ -53,6 +79,7 @@ static const char *TAG = "HUB_WIFI";
 // Event group
 const int STA_CONNECTED_BIT = BIT0;
 const int STA_DISCONNECTED_BIT = BIT1;
+const int WIFI_MANAGER_SCAN_BIT = BIT7;
 static EventGroupHandle_t wifi_event_group;
 static int s_retry_num = 0;
 EventBits_t bits;
@@ -63,9 +90,13 @@ char SSID[32];
 char PWD[64];
 char USER_NAME[64];
 char DEVICE_NAME[64];
+wifi_ap_record_t ap_records[20];
 
 void wifi_init_softap();
 esp_err_t hub_is_provisioned();
+esp_err_t wifi_manager_save_sta_config();
+bool wifi_manager_fetch_wifi_sta_config();
+
 
 // wait for time to be set
 time_t now = 0;
@@ -135,6 +166,8 @@ static void event_handler(void* arg, esp_event_base_t event_base,
         s_retry_num = 0;
         xEventGroupSetBits(wifi_event_group, STA_CONNECTED_BIT);
         wifi_status = 0x01;
+        /* bring down DNS hijack */
+        dns_server_stop();
     }
 }
 
@@ -212,6 +245,9 @@ extern const uint8_t server_login_css_end[]   asm("_binary_login_css_end");
 static void wifi_event_handler(void* arg, esp_event_base_t event_base,
                                     int32_t event_id, void* event_data)
 {
+    wifi_config_t wifi_cfg;
+    static int s_retry_num_ap_not_found = 0;
+
     if (event_base == WIFI_EVENT &&  event_id== WIFI_EVENT_AP_START) {
         ESP_LOGI(TAG, "- Wifi AP started.");
 		
@@ -233,6 +269,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         wifi_event_ap_stadisconnected_t* event = (wifi_event_ap_stadisconnected_t*) event_data;
         ESP_LOGI(TAG, "station "MACSTR" leave, AID=%d",
                  MAC2STR(event->mac), event->aid);
+                //wifi_scan();
 
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         ESP_LOGI(TAG, "WiFi Station STARTED");
@@ -245,7 +282,11 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry to connect to the AP");
-        } else {
+        } else {            
+            esp_wifi_disconnect();
+            esp_wifi_scan_start(NULL, true);
+            //wifi_scan();
+            ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event_handler, NULL));
             xEventGroupSetBits(wifi_event_group, STA_DISCONNECTED_BIT);
             wifi_status = 0x00;
         }
@@ -260,6 +301,77 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
 
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_STOP) {
         ESP_LOGE(TAG, "event? %d   --- WIFI_EVENT_STA_STOP", event_id);
+        //wifi_scan();
+
+    } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_SCAN_DONE) {
+        printf("-------------------------------Toan WIFI_EVENT_SCAN_DONE\n");
+        esp_err_t ret = ESP_FAIL;
+        uint16_t ap_num = MAX_APs; /*number of access point*/
+        ret = esp_wifi_scan_get_ap_records(&ap_num, ap_records);
+        if (ret != ESP_OK) {
+            memset(ap_records, 0, sizeof(ap_records));
+            ESP_LOGE(TAG, "Failed to get scanned AP records %d", ret);
+            return;
+        }
+
+        #if(CONFIG_DEBUG_ENABLE)
+        printf("Found %d access points:\n", ap_num);
+        #endif
+        
+        esp_wifi_get_config(ESP_IF_WIFI_STA, &wifi_cfg);
+        for(int i = 0; i < ap_num; i++) {
+        #if(CONFIG_DEBUG_ENABLE)
+        printf("%32s\n", (char *)ap_records[i].ssid);
+        #endif
+        // ESP_LOGI(TAG, "WiFi compare length %d", strcmp((char *)ap_records[i].ssid, (char *)wifi_cfg.sta.ssid));
+        if(strcmp((char *)ap_records[i].ssid, (char *)wifi_cfg.sta.ssid) == 0) {
+            #if(CONFIG_DEBUG_ENABLE)
+            printf("found ssid %32s\t WIFI RECONNECT DELAY %d\n", (char *)ap_records[i].ssid, wifi_reconnect_delay);
+            #endif
+            //wait for wifi stable at least 3 times
+            if(wifi_reconnect_delay >= WIFI_RECONNECT_DELAY_TIMEOUT) {
+            //Connect the ESP32 WiFi station to the AP.
+            esp_wifi_connect();
+            }
+            else {
+            wifi_reconnect_delay++;
+            }
+            s_retry_num_ap_not_found = 0;
+            return;
+        }
+        }
+        // not found AP
+        if (s_retry_num_ap_not_found < 3) {
+        if((wifi_error_log_state == WIFI_LOG_NO_ERROR) | (wifi_error_log_state == WIFI_LOG_DISCONNECT_RETRY)) {
+            wifi_error_log_state = WIFI_LOG_DISCONNECT_RETRY;
+        }
+        else {
+            if(g_airswing_mode == 0/* SWING_DEACTIVE_MODE */) {
+            swing_wifi_set_status(WIFI_OP_PROVISIONING);
+            }
+        }
+        s_retry_num_ap_not_found++;
+        }
+        else {
+        #if(CONFIG_DEBUG_ENABLE)
+        ESP_LOGE(TAG, "(reconnect) STA AP Not found");
+        #endif
+        // log error
+        if((wifi_error_log_state == WIFI_LOG_NO_ERROR) | (wifi_error_log_state == WIFI_LOG_DISCONNECT_RETRY)) {
+            wifi_error_log_state = WIFI_LOG_DISCONNECT_NO_AP_FOUND;
+            wifi_error_log_time = system_counter1s;
+        }
+
+        if(g_airswing_mode == 0/* SWING_DEACTIVE_MODE */) {
+            swing_wifi_set_status(WIFI_OP_PROVISIONING);
+        }
+        s_retry_num_ap_not_found = 0;
+        swing_wifi_set_status(WIFI_OP_DISCONNECTED);
+        }
+        #if(CONFIG_DEBUG_ENABLE)
+        ESP_LOGW(TAG, "retry scanning the AP");
+        ESP_LOGI(TAG, "event scan done, wifi_error_log %d", wifi_error_log_state);
+        #endif
 
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
@@ -267,6 +379,9 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         s_retry_num = 0;
         xEventGroupSetBits(wifi_event_group, STA_CONNECTED_BIT);
         wifi_status = 0x01;
+        /* bring down DNS hijack */
+	    //dns_server_stop();
+        wifi_manager_save_sta_config();
     } else {
         ESP_LOGE(TAG, "event? %d ???", event_id);
     }
@@ -338,6 +453,19 @@ static esp_err_t root_post_handler(httpd_req_t *req)
         ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_cfg));
         ESP_ERROR_CHECK(esp_wifi_start());
+        
+        /* char *TAG = "EMETER";       
+        static char *nvs_emeter_key = "emeter_key";
+        uint8_t* tmp;
+        tmp = "test";
+        uint8_t* length;
+        printf("-------------Toan tmp=%X", &tmp)
+        swing_nvs_write(TAG, strlen(TAG) + 1, nvs_emeter_key, strlen(nvs_emeter_key) + 1, 
+        $tmp, sizeof(tmp));
+        //swing_nvs_write(TAG, strlen(TAG) + 1, (char *)wifi_cfg.sta.ssid, strlen((char *)wifi_cfg.sta.ssid) + 1,
+         //(unsigned char *)PWD, sizeof(PWD));
+         swing_nvs_read(TAG, strlen(TAG) + 1, nvs_emeter_key, strlen(nvs_emeter_key) + 1, &tmp, &length);
+         printf("-------------Toan tmp=%X", &tmp) */
     }
 
     // End response
@@ -449,8 +577,25 @@ esp_err_t http_404_error_handler(httpd_req_t *req, httpd_err_code_t err)
 
 static httpd_handle_t start_webserver(void)
 {
+    printf("-------------------------------Toan start_webserver\n");
+    /* DHCP AP configuration */
+	//esp_netif_dhcps_stop(esp_netif_ap); /* DHCP client/server must be stopped before setting new IP information. */
+	/*
+    esp_netif_ip_info_t ap_ip_info;
+	memset(&ap_ip_info, 0x00, sizeof(ap_ip_info));
+	inet_pton(AF_INET, CONFIG_DEFAULT_AP_IP, &ap_ip_info.ip);
+	inet_pton(AF_INET, CONFIG_DEFAULT_AP_GATEWAY, &ap_ip_info.gw);
+	inet_pton(AF_INET, CONFIG_DEFAULT_AP_NETMASK, &ap_ip_info.netmask);
+    */
+	//ESP_ERROR_CHECK(esp_netif_set_ip_info(esp_netif_ap, &ap_ip_info));
+	//ESP_ERROR_CHECK(esp_netif_dhcps_start(esp_netif_ap));
+
+
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    //config.server_port = 53;
+    config.uri_match_fn = httpd_uri_match_wildcard;  
+    config.lru_purge_enable = true;
 
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
@@ -459,7 +604,11 @@ static httpd_handle_t start_webserver(void)
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &get_config);
         httpd_register_uri_handler(server, &post_config);      
-        httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);  
+        httpd_register_err_handler(server, HTTPD_404_NOT_FOUND, http_404_error_handler);        
+
+        //mgos_register_http_endpoint("/generate_204", serve_redirect_ev_handler, NULL);              // Android
+        //mgos_register_http_endpoint("/gen_204", redirect_ev_handler, NULL);                   // Android 9.0
+
         return server;
     }
 
@@ -488,18 +637,28 @@ void wifi_init_softap()
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &ap_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_ERROR_CHECK(esp_wifi_start());    
     printf("- Wifi ap starting...\n");
+
+    //esp_wifi_scan_start(NULL, true);
+    //ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event_handler, NULL));
 
     start_webserver();
     start_dns_server();
+
 }
 
 esp_err_t hub_is_provisioned()
 {
 #ifdef CONFIG_RESET_PROVISIONED
     ESP_LOGE(TAG, "Reset provisioning");
-    nvs_flash_erase();
+    // nvs_flash_erase();
+    // clear WiFi setting
+	esp_err_t ret = esp_wifi_restore();
+	if (ret != ESP_OK) {
+		ESP_LOGE(TAG, "reset WiFi Setting error %d", ret);
+		return ret;
+	}
 #endif
 
     /* Get WiFi Station configuration */
@@ -507,6 +666,17 @@ esp_err_t hub_is_provisioned()
     if (esp_wifi_get_config(ESP_IF_WIFI_STA, &wifi_cfg) != ESP_OK) {
         return ESP_FAIL;
     }
+
+    /* char *TAG = "EMETER";    
+    static char *nvs_emeter_key = "emeter_key";
+    char *tmp = "";
+    if (strlen((const char*) wifi_cfg.sta.ssid)) {
+        printf("-------------------------------ToanToan Nha 2 cua\n");
+        swing_nvs_read(TAG, strlen(TAG) + 1, nvs_emeter_key, strlen(nvs_emeter_key) + 1, 
+        (unsigned char *)tmp, (unsigned char *)'9');
+        printf("-------------------------------ToanToan hub_is_provisioned\n");
+        printf("%s", tmp);
+    } */
 
     if (strlen((const char*) wifi_cfg.sta.ssid)) {
         ESP_LOGI(TAG, "Current ssid %s",     (const char*) wifi_cfg.sta.ssid);
@@ -521,8 +691,12 @@ esp_err_t hub_is_provisioned()
             pdFALSE,
             pdFALSE,
             portMAX_DELAY);
-    } else {
+        //save wifi
+        wifi_manager_save_sta_config();
+    } else {        
         wifi_init_softap();
+        esp_wifi_scan_start(NULL, true);
+        ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event_handler, NULL));
     }
     return ESP_OK;
 }
@@ -544,15 +718,229 @@ void hub_wifi_init(void)
 	/* all configuration will store in both RAM and FLASH
 	 * Note: if this function is not invoked, The default value is WIFI_STORAGE_FLASH
 	 */
+    //wifi_scan();
+    	/* wifi scanner config */
+    wifi_scan_config_t scan_config = {
+		.ssid = 0,
+		.bssid = 0,
+		.channel = 0,
+		.show_hidden = true
+	};
+    esp_wifi_scan_start(&scan_config, false);
+    
+
 	esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_SCAN_DONE, wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_event_handler, NULL));
-
+    printf("-------------------------------ToanToan hub_is_provisioned\n");
     /* Check if device is provisioned */
+    if(!wifi_manager_fetch_wifi_sta_config()) {
+        ESP_LOGE(TAG, "-------------------------ToanToan Error fetching wifi station config");
+    }
 	if (hub_is_provisioned() != ESP_OK) {
 		ESP_LOGE(TAG, "Error getting device provisioning state");
-		return;
+        //toan
+        printf("-------------------------------ToanToan hub_is_provisioned is not OK\n");
+        wifi_scan();
+        //ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_event_handler, NULL));
+		//return;
+	}    
+}
+
+
+
+//toan
+/**
+ * The actual WiFi settings in use
+ */
+struct wifi_settings_t wifi_settings = {
+	.ap_ssid = CONFIG_AP_SSID,
+	.ap_pwd = CONFIG_AP_PASSWORD,
+	.ap_channel = CONFIG_AP_CHANNEL,
+	.ap_ssid_hidden = CONFIG_AP_SSID_HIDDEN,
+	.ap_bandwidth = DEFAULT_AP_BANDWIDTH,
+	.sta_only = DEFAULT_STA_ONLY,
+	.sta_power_save = DEFAULT_STA_POWER_SAVE,
+	.sta_static_ip = 0,
+};
+const char wifi_manager_nvs_namespace[] = "espwifimgr";
+
+esp_err_t wifi_manager_save_sta_config(){
+
+	nvs_handle handle;
+	esp_err_t esp_err;
+	size_t sz;
+
+	/* variables used to check if write is really needed */
+	wifi_config_t tmp_conf;
+	struct wifi_settings_t tmp_settings;
+	memset(&tmp_conf, 0x00, sizeof(tmp_conf));
+	memset(&tmp_settings, 0x00, sizeof(tmp_settings));
+	bool change = false;
+
+	ESP_LOGI(TAG, "About to save config to flash!!");
+
+	if(wifi_manager_config_sta  && nvs_sync_lock( portMAX_DELAY ) ){
+
+		esp_err = nvs_open(wifi_manager_nvs_namespace, NVS_READWRITE, &handle);
+		if (esp_err != ESP_OK){
+			//nvs_sync_unlock();
+			return esp_err;
+		}
+
+		sz = sizeof(tmp_conf.sta.ssid);
+		esp_err = nvs_get_blob(handle, "ssid", tmp_conf.sta.ssid, &sz);
+		if( (esp_err == ESP_OK  || esp_err == ESP_ERR_NVS_NOT_FOUND) && strcmp( (char*)tmp_conf.sta.ssid, (char*)wifi_manager_config_sta->sta.ssid) != 0){
+			/* different ssid or ssid does not exist in flash: save new ssid */
+			esp_err = nvs_set_blob(handle, "ssid", wifi_manager_config_sta->sta.ssid, 32);
+			if (esp_err != ESP_OK){
+				//nvs_sync_unlock();
+				return esp_err;
+			}
+			change = true;
+			ESP_LOGI(TAG, "wifi_manager_wrote wifi_sta_config: ssid:%s",wifi_manager_config_sta->sta.ssid);
+
+		}
+
+		sz = sizeof(tmp_conf.sta.password);
+		esp_err = nvs_get_blob(handle, "password", tmp_conf.sta.password, &sz);
+		if( (esp_err == ESP_OK  || esp_err == ESP_ERR_NVS_NOT_FOUND) && strcmp( (char*)tmp_conf.sta.password, (char*)wifi_manager_config_sta->sta.password) != 0){
+			/* different password or password does not exist in flash: save new password */
+			esp_err = nvs_set_blob(handle, "password", wifi_manager_config_sta->sta.password, 64);
+			if (esp_err != ESP_OK){
+				//nvs_sync_unlock();
+				return esp_err;
+			}
+			change = true;
+			ESP_LOGI(TAG, "wifi_manager_wrote wifi_sta_config: password:%s",wifi_manager_config_sta->sta.password);
+		}
+
+		sz = sizeof(tmp_settings);
+		esp_err = nvs_get_blob(handle, "settings", &tmp_settings, &sz);
+		if( (esp_err == ESP_OK  || esp_err == ESP_ERR_NVS_NOT_FOUND) &&
+				(
+				strcmp( (char*)tmp_settings.ap_ssid, (char*)wifi_settings.ap_ssid) != 0 ||
+				strcmp( (char*)tmp_settings.ap_pwd, (char*)wifi_settings.ap_pwd) != 0 ||
+				tmp_settings.ap_ssid_hidden != wifi_settings.ap_ssid_hidden ||
+				tmp_settings.ap_bandwidth != wifi_settings.ap_bandwidth ||
+				tmp_settings.sta_only != wifi_settings.sta_only ||
+				tmp_settings.sta_power_save != wifi_settings.sta_power_save ||
+				tmp_settings.ap_channel != wifi_settings.ap_channel
+				)
+		){
+			esp_err = nvs_set_blob(handle, "settings", &wifi_settings, sizeof(wifi_settings));
+			if (esp_err != ESP_OK){
+				//nvs_sync_unlock();
+				return esp_err;
+			}
+			change = true;
+
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: SoftAP_ssid: %s",wifi_settings.ap_ssid);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: SoftAP_pwd: %s",wifi_settings.ap_pwd);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: SoftAP_channel: %i",wifi_settings.ap_channel);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: SoftAP_hidden (1 = yes): %i",wifi_settings.ap_ssid_hidden);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: SoftAP_bandwidth (1 = 20MHz, 2 = 40MHz): %i",wifi_settings.ap_bandwidth);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: sta_only (0 = APSTA, 1 = STA when connected): %i",wifi_settings.sta_only);
+			ESP_LOGD(TAG, "wifi_manager_wrote wifi_settings: sta_power_save (1 = yes): %i",wifi_settings.sta_power_save);
+		}
+
+		if(change){
+			esp_err = nvs_commit(handle);
+		}
+		else{
+			ESP_LOGI(TAG, "Wifi config was not saved to flash because no change has been detected.");
+		}
+
+		if (esp_err != ESP_OK) return esp_err;
+
+		nvs_close(handle);
+		//nvs_sync_unlock();
+
 	}
+	else{
+		ESP_LOGE(TAG, "wifi_manager_save_sta_config failed to acquire nvs_sync mutex");
+	}
+
+	return ESP_OK;
+}
+
+bool wifi_manager_fetch_wifi_sta_config(){
+
+	nvs_handle handle;
+	esp_err_t esp_err;
+	if(nvs_sync_lock( portMAX_DELAY )){
+
+		esp_err = nvs_open(wifi_manager_nvs_namespace, NVS_READONLY, &handle);
+
+		if(esp_err != ESP_OK){
+			nvs_sync_unlock();
+			return false;
+		}
+
+		if(wifi_manager_config_sta == NULL){
+			wifi_manager_config_sta = (wifi_config_t*)malloc(sizeof(wifi_config_t));
+		}
+		memset(wifi_manager_config_sta, 0x00, sizeof(wifi_config_t));
+
+		/* allocate buffer */
+		size_t sz = sizeof(wifi_settings);
+		uint8_t *buff = (uint8_t*)malloc(sizeof(uint8_t) * sz);
+		memset(buff, 0x00, sizeof(sz));
+
+		/* ssid */
+		sz = sizeof(wifi_manager_config_sta->sta.ssid);
+		esp_err = nvs_get_blob(handle, "ssid", buff, &sz);
+		if(esp_err != ESP_OK){
+			free(buff);
+			nvs_sync_unlock();
+			return false;
+		}
+		memcpy(wifi_manager_config_sta->sta.ssid, buff, sz);
+
+		/* password */
+		sz = sizeof(wifi_manager_config_sta->sta.password);
+		esp_err = nvs_get_blob(handle, "password", buff, &sz);
+		if(esp_err != ESP_OK){
+			free(buff);
+			nvs_sync_unlock();
+			return false;
+		}
+		memcpy(wifi_manager_config_sta->sta.password, buff, sz);
+
+		/* settings */
+		sz = sizeof(wifi_settings);
+		esp_err = nvs_get_blob(handle, "settings", buff, &sz);
+		if(esp_err != ESP_OK){
+			free(buff);
+			nvs_sync_unlock();
+			return false;
+		}
+		memcpy(&wifi_settings, buff, sz);
+
+		free(buff);
+		nvs_close(handle);
+		nvs_sync_unlock();
+
+
+		ESP_LOGI(TAG, "wifi_manager_fetch_wifi_sta_config: ssid:%s password:%s",wifi_manager_config_sta->sta.ssid,wifi_manager_config_sta->sta.password);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: SoftAP_ssid:%s",wifi_settings.ap_ssid);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: SoftAP_pwd:%s",wifi_settings.ap_pwd);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: SoftAP_channel:%i",wifi_settings.ap_channel);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: SoftAP_hidden (1 = yes):%i",wifi_settings.ap_ssid_hidden);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: SoftAP_bandwidth (1 = 20MHz, 2 = 40MHz)%i",wifi_settings.ap_bandwidth);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: sta_only (0 = APSTA, 1 = STA when connected):%i",wifi_settings.sta_only);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: sta_power_save (1 = yes):%i",wifi_settings.sta_power_save);
+		ESP_LOGD(TAG, "wifi_manager_fetch_wifi_settings: sta_static_ip (0 = dhcp client, 1 = static ip):%i",wifi_settings.sta_static_ip);
+
+		return wifi_manager_config_sta->sta.ssid[0] != '\0';
+
+
+	}
+	 else{
+		return false;
+	} 
+
 }
 
 #endif

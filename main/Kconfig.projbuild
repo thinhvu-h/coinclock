@@ -181,6 +181,24 @@ menu "Access Point configuration"
 		default 0
 		help
 			Channel for the Wifi network
+
+	config DEFAULT_AP_IP
+		string "Access Point IP Address"
+		default "10.10.0.1"
+		help
+			This is used for the redirection to the captive portal. It is recommended to leave unchanged.
+
+	config DEFAULT_AP_GATEWAY
+		string "Access Point IP Gateway"
+		default "10.10.0.1"
+		help
+			This is used for the redirection to the captive portal. It is recommended to leave unchanged.
+
+	config DEFAULT_AP_NETMASK
+		string "Access Point Netmask"
+		default "255.255.255.0"
+		help
+			This is used for the redirection to the captive portal. It is recommended to leave unchanged.
 	
 	choice
 		prompt "Authentication mode"

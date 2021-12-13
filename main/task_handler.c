@@ -197,7 +197,7 @@ void coin_handler(void) {
  */
 void task_1000ms(void)
 {
-	coin_handler();
+	//coin_handler();
 	hub_draw();
 	system_count++;
 	ESP_LOGI("TAG", "system count %d", system_count);

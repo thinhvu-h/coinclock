@@ -12,8 +12,17 @@
 #include "lwip/dns.h"
 #include "lwip/sockets.h"
 
-#define AP_RECONN_ATTEMPTS  		CONFIG_RECONN_ATTEMPTS
-#define MAX_WIFI_LOG_SIZE_BUFFER	3
+#define AP_RECONN_ATTEMPTS  			CONFIG_RECONN_ATTEMPTS
+#define MAX_WIFI_LOG_SIZE_BUFFER		3
+#define DEFAULT_AP_SSID 				CONFIG_DEFAULT_AP_SSID
+#define DEFAULT_AP_PASSWORD 			CONFIG_DEFAULT_AP_PASSWORD
+#define DEFAULT_AP_CHANNEL 				CONFIG_DEFAULT_AP_CHANNEL
+#define DEFAULT_AP_BANDWIDTH 			WIFI_BW_HT20
+#define DEFAULT_STA_ONLY 				1
+#define DEFAULT_STA_POWER_SAVE 			WIFI_PS_NONE
+#define MAX_SSID_SIZE					32
+#define MAX_PASSWORD_SIZE				64
+
 
 typedef enum {
 	WIFI_LOG_NO_ERROR,
@@ -48,5 +57,18 @@ extern char SSID[32];
 extern char PWD[64];
 extern char USER_NAME[64];
 extern char DEVICE_NAME[64];
+
+struct wifi_settings_t{
+	uint8_t ap_ssid[MAX_SSID_SIZE];
+	uint8_t ap_pwd[MAX_PASSWORD_SIZE];
+	uint8_t ap_channel;
+	uint8_t ap_ssid_hidden;
+	wifi_bandwidth_t ap_bandwidth;
+	bool sta_only;
+	wifi_ps_type_t sta_power_save;
+	bool sta_static_ip;
+	esp_netif_ip_info_t sta_static_ip_config;
+};
+extern struct wifi_settings_t wifi_settings;
 
 #endif /*HUB_WIFI_H*/
