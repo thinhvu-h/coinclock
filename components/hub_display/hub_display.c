@@ -93,11 +93,11 @@ char* double2StringConvert(double number) {
     double fnpart = number - (double)ipart;  
     // double fnpart = 0.008;
     printf("fnpart: %f\n", fnpart);
-    sprintf(temp_buff, "%02d", (int)(fnpart*pow(10,2)+0.5));
+    sprintf(temp_buff, "%06d", (int)(fnpart*pow(10,6)+0.5));
     printf("coin double: %s\n", temp_buff);
     strcat(after_dot_buf, temp_buff);
     printf("temp_buff after dot length: %d\n", strlen(temp_buff));
-    for(int i=0;i<(4-strlen(temp_buff));i++) {
+    for(int i=0;i<(6-strlen(temp_buff));i++) {
         strcat(after_dot_buf," ");
     }
 
@@ -109,7 +109,7 @@ char* double2StringConvert(double number) {
 }
 
 void hub_draw() {
-    ESP_LOGI("TAG", "Drawing...");
+    // ESP_LOGI("TAG", "Drawing...");
     char systemCount[20];
     memset(systemCount,0,strlen(systemCount));
     sprintf(systemCount, "%d", system_count);
@@ -120,33 +120,61 @@ void hub_draw() {
     hub_display(coinname, coinvalue_str, systemCount);
 }
 
-static void hub_display(char* coinname, char* USD, char* Binance) 
+// Battery empty value
+// U = 100K * 3.5V / 570K = 0.6140 V --> 571 (analogRead)
+#define BATTERY_LOW 571
+// step width for each battery symbol
+#define BATTERY_STEP 33
+uint16_t readBatteryVoltageLevel(void)
+{
+  uint16_t battery_raw = 1000;
+  uint16_t battery_glyph = 0;
+  if ( battery_raw >= BATTERY_LOW )
+  {
+    battery_glyph = (battery_raw - BATTERY_LOW)/BATTERY_STEP;
+    if ( battery_glyph > 5 )
+      battery_glyph = 5;
+  }
+  return (battery_glyph += 48);
+}
+
+static void hub_display(char* Coin_Name_Unit, char* Price, char* Binance) 
 {    
     u8g2_ClearBuffer(&u8g2);
 
-    if(wifi_status == 0x01) {
-        u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
-        // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
-        u8g2_DrawStr(&u8g2, 28, 16, coinname);
+    // if(wifi_status == 0x01) {
+        
+    //     u8g2_SetFont(&u8g2, u8g2_font_helvB12_tf);
+    //     // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
+    //     u8g2_DrawStr(&u8g2, 32, 16, Coin_Name_Unit);
 
-        u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
-        u8g2_DrawStr(&u8g2, 10, 42, USD);
+    //     u8g2_SetFont(&u8g2, u8g2_font_helvB18_tf);
+    //     u8g2_DrawStr(&u8g2, 10, 42, Price);
 
-        u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
-        u8g2_DrawStr(&u8g2, 10, 62, coinexchange);
-    } 
-    else {
-        u8g2_SetFont(&u8g2, u8g2_font_helvB08_tf);
-        // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
-        u8g2_DrawStr(&u8g2, 14, 38, "WIFI DISCONNECTED");
-    }
-    // line
-    u8g2_DrawHLine(&u8g2, 10, 50, 120);
+    //     u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
+    //     u8g2_DrawStr(&u8g2, 10, 62, coinexchange);
+    // } 
+    // else {
+    //     u8g2_SetFont(&u8g2, u8g2_font_helvB08_tf);
+    //     // api: u8g2_uint_t u8g2_DrawStr(u8g2_t *u8g2, u8g2_uint_t x, u8g2_uint_t y, const char *s);
+    //     u8g2_DrawStr(&u8g2, 14, 38, "WIFI DISCONNECTED");
+    // }
+    // // line
+    // u8g2_DrawHLine(&u8g2, 10, 50, 120);
 
-    u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
-    u8g2_DrawStr(&u8g2, 66, 62, Binance);
+    // u8g2_SetFont(&u8g2, u8g2_font_tinytim_tr);
+    // u8g2_DrawStr(&u8g2, 64, 60, Binance);
 
-    u8g2_DrawXBM(&u8g2, 115, 52, 15, 15, battery_full_icon);
+    // u8g2_DrawXBM(&u8g2, 112, 52, 16, 16, battery_100_icon);
+    // u8g2_DrawXBM(&u8g2, 99, 55, 10, 10, wifi_10_icon);
+
+    u8g2_DrawXBM(&u8g2, 20, 0, 64, 64, qr_icon);
+
+    // uint16_t battery_glyph = readBatteryVoltageLevel();
+    // u8g2_SetFont(&u8g2, u8g2_font_battery19_tn);
+    // u8g2_SetFontDirection(&u8g2, 3);
+    // u8g2_DrawGlyph(&u8g2, 127, 60, battery_glyph);
+    // u8g2_SetFontDirection(&u8g2, 0);
     u8g2_SendBuffer(&u8g2);
-    ESP_LOGI("TAG", "Drawed DONE");
+    // ESP_LOGI("TAG", "Drawed DONE");
 }
